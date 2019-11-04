@@ -37,7 +37,7 @@ for i in range(0,3):
     for c in df_list:
         exec('{} = json_normalize(X)'.format(c))
 
-d['X0'].head()
+['X0'].head()
 #### Pandas profiling on coolab
 
 ### investigate on my own
@@ -69,6 +69,9 @@ X2[['_source.system.cpu.system.pct', '_source.system.cpu.user.pct','_source.syst
 #### aggregating data 1 minute window
 import datetime
 from sklearn.preprocessing import OneHotEncoder as oh
+X0['_source.@timestamp'].dtypes()
+X0['_source.@timestamp'] = pd.to_datetime(X0['_source.@timestamp'])
+X0['host_fingerprint']=X0['_source.host.architecture']+'_'+X0['_source.host.os.kernel']+'_'+X0['_source.host.os.name']
 
 get_max = lambda x: x.value_counts(dropna=True).index[0]; get_max.__name__ = "most frequent"
 
@@ -136,6 +139,7 @@ col_category=['_source.@timestamp','_source.event.dataset','_source.metricset.na
 col_category=['_source.@timestamp','_source.event.dataset','_source.metricset.name','_source.user.name','_source.process.name','_source.system.network.name','host_fingerprint']
 df_num=X0[col_num].set_index('_source.@timestamp').resample('T').agg(stats_list)
 df_category=X0[col_category].set_index('_source.@timestamp').resample('T').agg([get_max])
+X0[col_category].head()
 df_category_numeric_index=pd.DataFrame()
 df_category_numeric=pd.DataFrame()
 for column in df_category:
