@@ -18,10 +18,8 @@ def download_json(path, index, last_minutes, host, port, user, password):
     time_query = {
         "@timestamp": {
             "format": "strict_date_optional_time",
-            "gte": "2019-11-09T08:00:00.000Z",
-            "lte": "2019-11-09T10:00:00.000Z"
-#            "gte": "now-{0}m".format(last_minutes),
-#            "lt": "now"
+            "gte": "now-{0}m".format(last_minutes),
+            "lt": "now"
         }
     }
     search = search.query('range', **time_query)
@@ -37,7 +35,7 @@ def download_json(path, index, last_minutes, host, port, user, password):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download elastic search last X minutes on an index')
-    parser.add_argument('--path', '-o', help='JSON output path', type=str, default="C:/Users/Tsabar/projects/monitor/json/aws3.json", required=False)
+    parser.add_argument('--path', '-o', help='JSON output path', type=str, default="C:/Users/Tsabar/projects/monitor/json/aws_141119_1315.json", required=False)
     parser.add_argument('--index', '-i', help="ElasticSearch index", type=str, default='metricbeat-*', required=False)
     parser.add_argument('--lastMinutes', '-m', help="Last minutes to get data for", dest='last_minutes', type=int, default=0, required=False)
     parser.add_argument('--host', '-a', help="ElasticSearch Host's ip/address", type=str, default='elastic.monitor.net', required=False)
