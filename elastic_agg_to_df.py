@@ -1,19 +1,15 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Nov 18 20:47:54 2019
-
-@author: Tsabar
-"""
-
 import pandas as pd
 import json
 from elasticsearch_dsl.utils import AttrDict, AttrList
 
 
+keys_to_ignore = ['key', 'key_as_string', 'doc_count', 'doc_count_error_upper_bound']
+
+
 def process_row(time, row):
     host = row['key']
     row_data = { 'time': time, 'host': host }
-    keys = [x for x in row if x != 'key' and x != 'doc_count']
+    keys = [x for x in row if x not in keys_to_ignore]
     if len(keys) == 1 and 'buckets' in row[keys[0]]:
         print(f'found bucket key: {keys[0]}')
         row_data
@@ -44,7 +40,7 @@ def build_aggregation_dataframe(x, time_key='2', hosts_key='3'):
 
 
 def get_bucket(row):
-    keys = [x for x in row if x != 'key' and x != 'key_as_string' and x != 'doc_count']
+    keys = [x for x in row if x not in keys_to_ignore]
     is_bucket = len(keys) == 1 and 'buckets' in row[keys[0]]
     bucket_key = keys[0] if is_bucket else None
     return is_bucket, bucket_key
@@ -55,7 +51,7 @@ def process_generic_row(rows, node, bucket_key=None, row_data=None):
         row_data = {}
     if bucket_key:
         row_data[bucket_key] = node['key']
-    keys = [x for x in node if x != 'key' and x != 'doc_count']
+    keys = [x for x in node if x not in keys_to_ignore]
     for key in keys:
         for value in node[key]:
             if isinstance(node[key][value], AttrDict) or isinstance(node[key][value], dict): continue
