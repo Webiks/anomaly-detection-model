@@ -46,39 +46,62 @@ def get_bucket(row):
     return is_bucket, bucket_key
 
 
-def process_generic_row(rows, node, bucket_key=None, row_data=None):
+def format_key(key):
+    if isinstance(key, float):
+        key = int(key)
+    return key
+
+
+def process_generic_row(rows, node, bucket_key=None, row_data=None, count_fields=None, extended_fields=None):
     if row_data is None:
         row_data = {}
     if bucket_key:
         row_data[bucket_key] = node['key']
     keys = [x for x in node if x not in keys_to_ignore]
     for key in keys:
+        key_extended_fields = []
+        is_extended = extended_fields and key in extended_fields
+        if is_extended:
+            key_extended_fields = extended_fields[key]
         for value in node[key]:
+            value_name = value
+            if value_name == "std_deviation":
+                value_name = "std"
+            if is_extended and value_name not in key_extended_fields: continue
             if isinstance(node[key][value], AttrDict) or isinstance(node[key][value], dict): continue
             if isinstance(node[key][value], AttrList) or isinstance(node[key][value], list):
-                for item in node[key][value]:
-                    row_data[f"{key}_{item['key']}"] = item['value']
+                if len(node[key][value]) == 1:
+                    item = node[key][value][0]
+                    row_data[key] = item['value']
+                else:
+                    for item in node[key][value]:
+                        row_data[f"{key}_{format_key(item['key'])}"] = item['value']
             else:
-                row_data[key + '_' + value] = node[key][value]
+                row_data[key + '_' + value_name] = node[key][value]
+    if count_fields:
+        for field in count_fields:
+            row_data[field] = node['doc_count']
     rows.append(row_data)
 
 
-def build_generic_bucket(rows, list, bucket_key, row_data=None):
+def build_generic_bucket(rows, list, bucket_key, row_data=None, count_fields=None, extended_fields=None):
     for node in list:
         node_row_data = {} if row_data is None else row_data.copy()
         node_row_data[bucket_key] = node['key']
         is_bucket, inner_bucket_key = get_bucket(node)
         if is_bucket:
-            build_generic_bucket(rows, node[inner_bucket_key]['buckets'], inner_bucket_key, node_row_data)
+            build_generic_bucket(rows, node[inner_bucket_key]['buckets'],
+                                 inner_bucket_key, node_row_data, count_fields, extended_fields)
         else:
-            process_generic_row(rows, node, inner_bucket_key, node_row_data)
+            process_generic_row(rows, node, inner_bucket_key, node_row_data, count_fields, extended_fields)
 
 
-def build_generic_aggregations_dataframe(x):
+def build_generic_aggregations_dataframe(x, count_fields, extended_fields):
     rows = []
     node = x['aggregations']
     is_bucket, bucket_key = get_bucket(node)
-    build_generic_bucket(rows, node[bucket_key]['buckets'], bucket_key)
+    build_generic_bucket(rows, node[bucket_key]['buckets'], bucket_key,
+                         count_fields=count_fields, extended_fields=extended_fields)
     df = pd.DataFrame(rows)
     return df
 
