@@ -1,7 +1,6 @@
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
 import argparse
-import json
 from elastic_agg_to_df import build_generic_aggregations_dataframe
 import pandas as pd
 
@@ -34,27 +33,14 @@ def download_json(path, index, last_minutes, host, port, user, password):
     aggs.metric('idle_sum', 'sum', field="system.cpu.idle.pct")
     aggs.metric('cpu_stats', 'extended_stats', field="system.cpu.system.pct")
     aggs.metric('cpu_steal', 'percentiles', field="system.cpu.steal.pct", percents=[25, 75], keyed=False)
-    # search.query('range', **time_query)
-    # total = search.count()
-    # print(total)
     response = search.execute()
-    print("test")
-    print(response.aggregations.to_dict())
     df = build_generic_aggregations_dataframe(response)
-    print(df.head(40))
-    return
-    
-    results = [get_hit_dict(hit) for hit in search.scan()]
-
-    print('downloaded')
-    with open(path, 'w') as f:
-        json.dump(results, f)
-    print('done')
+    df.to_json(path)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download elastic search last X minutes on an index')
-    parser.add_argument('--path', '-o', help='JSON output path', type=str, default="C:/Users/Tsabar/projects/monitor/json/aws_17_19112019.json", required=False)
+    parser.add_argument('--path', '-o', help='JSON output path', type=str, default="data.json", required=False)
     parser.add_argument('--index', '-i', help="ElasticSearch index", type=str, default='metricbeat-*', required=False)
     parser.add_argument('--lastMinutes', '-m', help="Last minutes to get data for", dest='last_minutes', type=int, default=5, required=False)
     parser.add_argument('--host', '-a', help="ElasticSearch Host's ip/address", type=str, default='elastic.monitor.net', required=False)
