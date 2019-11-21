@@ -64,14 +64,14 @@ def build_metrics(aggs, options):
     return count_fields, extended_fields, iqr_fields
 
 
-def build_query(search, index, last_minutes, options):
+def build_query(search, index, from_time, to_time, options):
     time_key = options['time']['field']
     time_interval = options['time']['interval']
     time_query = {
         time_key: {
             "format": "strict_date_optional_time",
-            "gte": "now-{0}m".format(last_minutes),
-            "lt": "now"
+            "gte": from_time,
+            "lt": to_time
         }
     }
     search = search.index(index)
@@ -93,17 +93,40 @@ def calculate_iqr_fields(df, iqr_fields):
     return df
 
 
+def get_data(index='metricbeat-*', from_time='now-5m', to_time='now', host='localhost',
+             port='9200', user='elastic', password='changeme', options='./options.json'):
+    """
+    Get aggregated data from elasticsearch
+    :param index: Index to read from
+    :param from_time: Query from time, e.g. "now-5m", "2019-11-17T10:00:00.000Z", etc.
+    :param to_time: Query to time, e.g. "now", "2019-11-17T11:00:00.000Z", etc.
+    :param host: ElasticSearch host name
+    :param port: ElasticSearch port number
+    :param user: ElasticSearch user
+    :param password: ElasticSearch password
+    :param options: Options object, contains the aggregations and metrics (see options.json)
+    :return: DataFrame with aggregated data
+    """
+    try:
+        options = json.load(open(options))
+        hosts = [{"host": host, "port": port}]
+        http_auth = (user, password)
+        elastic_client = Elasticsearch(hosts=hosts, http_auth=http_auth)
+        search = Search(using=elastic_client)
+        search, count_fields, extended_fields, iqr_fields = build_query(search, index, from_time, to_time, options)
+        response = search.execute()
+        df = build_generic_aggregations_dataframe(response, count_fields, extended_fields)
+        if iqr_fields and len(iqr_fields) > 0:
+            df = calculate_iqr_fields(df, iqr_fields)
+        return df
+    except Exception as ex:
+        raise Exception('Invalid results from elastic, check query')
+
+
 def download_json(path, index, last_minutes, host, port, user, password, options):
-    options = json.load(open(options))
-    hosts = [{"host": host, "port": port}]
-    http_auth = (user, password)
-    elastic_client = Elasticsearch(hosts=hosts, http_auth=http_auth)
-    search = Search(using=elastic_client)
-    search, count_fields, extended_fields, iqr_fields = build_query(search, index, last_minutes, options)
-    response = search.execute()
-    df = build_generic_aggregations_dataframe(response, count_fields, extended_fields)
-    if iqr_fields and len(iqr_fields) > 0:
-        df = calculate_iqr_fields(df, iqr_fields)
+    from_time = f"now-{last_minutes}m"
+    to_time = "now"
+    df = get_data(index, from_time, to_time, host, port, user, password, options)
     print(df.head(10))
     print(df.shape)
     df.to_json(path)
@@ -113,7 +136,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download elastic search last X minutes on an index')
     parser.add_argument('--path', '-o', help='JSON output path', type=str, default="data.json", required=False)
     parser.add_argument('--index', '-i', help="ElasticSearch index", type=str, default='metricbeat-*', required=False)
-    parser.add_argument('--lastMinutes', '-m', help="Last minutes to get data for", dest='last_minutes', type=int, default=5, required=False)
+    parser.add_argument('--lastMinutes', '-m', help="Last minutes to get data for", dest='last_minutes', type=int, default=120, required=False)
     parser.add_argument('--host', '-a', help="ElasticSearch Host's ip/address", type=str, default='elastic.monitor.net', required=False)
     parser.add_argument('--port', '-p', help="ElasticSearch Host's port", type=int, default=9200, required=False)
     parser.add_argument('--user', '-u', help="ElasticSearch username", type=str, default='elastic', required=False)
