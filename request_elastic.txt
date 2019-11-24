@@ -1,0 +1,406 @@
+{
+  "aggs": {
+    "2": {
+      "date_histogram": {
+        "field": "@timestamp",
+        "calendar_interval": "1m",
+        "time_zone": "Asia/Jerusalem",
+        "min_doc_count": 1
+      },
+      "aggs": {
+        "3": {
+          "terms": {
+            "field": "host.name.keyword",
+            "order": {
+              "_count": "desc"
+            },
+            "size": 20
+          },
+          "aggs": {
+            "9": {
+              "terms": {
+                "field": "city.keyword",
+                "order": {
+                  "_count": "desc"
+                },
+                "size": 2
+              },
+              "aggs": {
+                "10": {
+                  "terms": {
+                    "field": "neighborhood.keyword",
+                    "order": {
+                      "_count": "desc"
+                    },
+                    "size": 5
+                  },
+                  "aggs": {
+                    "11": {
+                      "terms": {
+                        "field": "title.keyword",
+                        "order": {
+                          "_count": "desc"
+                        },
+                        "size": 2
+                      },
+                      "aggs": {
+                        "4": {
+                          "avg": {
+                            "field": "branch"
+                          }
+                        },
+                        "5": {
+                          "avg": {
+                            "field": "epoc"
+                          }
+                        },
+                        "6": {
+                          "extended_stats": {
+                            "field": "epoc"
+                          }
+                        },
+                        "7": {
+                          "percentiles": {
+                            "field": "epoc",
+                            "percents": [
+                              25,
+                              75
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "8": {
+                          "sum": {
+                            "field": "event.duration"
+                          }
+                        },
+                        "12": {
+                          "avg": {
+                            "field": "event.duration"
+                          }
+                        },
+                        "13": {
+                          "extended_stats": {
+                            "field": "event.duration"
+                          }
+                        },
+                        "14": {
+                          "percentiles": {
+                            "field": "event.duration",
+                            "percents": [
+                              25,
+                              75,
+                              90
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "15": {
+                          "sum": {
+                            "field": "metricset.period"
+                          }
+                        },
+                        "16": {
+                          "avg": {
+                            "field": "metricset.period"
+                          }
+                        },
+                        "17": {
+                          "extended_stats": {
+                            "field": "metricset.period"
+                          }
+                        },
+                        "18": {
+                          "percentiles": {
+                            "field": "metricset.period",
+                            "percents": [
+                              50
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "19": {
+                          "percentiles": {
+                            "field": "metricset.period",
+                            "percents": [
+                              90
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "20": {
+                          "avg": {
+                            "field": "system.cpu.cores"
+                          }
+                        },
+                        "21": {
+                          "sum": {
+                            "field": "system.cpu.idle.pct"
+                          }
+                        },
+                        "22": {
+                          "extended_stats": {
+                            "field": "system.cpu.idle.pct"
+                          }
+                        },
+                        "23": {
+                          "sum": {
+                            "field": "system.cpu.iowait.pct"
+                          }
+                        },
+                        "24": {
+                          "percentiles": {
+                            "field": "system.cpu.iowait.pct",
+                            "percents": [
+                              25
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "25": {
+                          "sum": {
+                            "field": "system.cpu.softirq.pct"
+                          }
+                        },
+                        "26": {
+                          "percentiles": {
+                            "field": "system.cpu.softirq.pct",
+                            "percents": [
+                              50
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "27": {
+                          "percentiles": {
+                            "field": "system.cpu.softirq.pct",
+                            "percents": [
+                              25
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "28": {
+                          "percentiles": {
+                            "field": "system.cpu.softirq.pct",
+                            "percents": [
+                              75
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "29": {
+                          "sum": {
+                            "field": "system.cpu.steal.pct"
+                          }
+                        },
+                        "30": {
+                          "extended_stats": {
+                            "field": "system.cpu.steal.pct"
+                          }
+                        },
+                        "31": {
+                          "percentiles": {
+                            "field": "system.cpu.steal.pct",
+                            "percents": [
+                              25,
+                              75
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "32": {
+                          "sum": {
+                            "field": "system.cpu.system.pct"
+                          }
+                        },
+                        "33": {
+                          "extended_stats": {
+                            "field": "system.cpu.system.pct"
+                          }
+                        },
+                        "34": {
+                          "percentiles": {
+                            "field": "system.cpu.system.pct",
+                            "percents": [
+                              25,
+                              75
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "35": {
+                          "extended_stats": {
+                            "field": "system.cpu.total.pct"
+                          }
+                        },
+                        "36": {
+                          "percentiles": {
+                            "field": "system.cpu.total.pct",
+                            "percents": [
+                              25,
+                              75
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "37": {
+                          "sum": {
+                            "field": "system.cpu.user.pct"
+                          }
+                        },
+                        "38": {
+                          "extended_stats": {
+                            "field": "system.cpu.user.pct"
+                          }
+                        },
+                        "39": {
+                          "percentiles": {
+                            "field": "system.cpu.user.pct",
+                            "percents": [
+                              25
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "40": {
+                          "sum": {
+                            "field": "system.filesystem.available"
+                          }
+                        },
+                        "41": {
+                          "extended_stats": {
+                            "field": "system.filesystem.available"
+                          }
+                        },
+                        "42": {
+                          "extended_stats": {
+                            "field": "system.filesystem.free_files"
+                          }
+                        },
+                        "43": {
+                          "sum": {
+                            "field": "system.filesystem.used.bytes"
+                          }
+                        },
+                        "44": {
+                          "sum": {
+                            "field": "system.fsstat.count"
+                          }
+                        },
+                        "45": {
+                          "avg": {
+                            "field": "system.fsstat.count"
+                          }
+                        },
+                        "46": {
+                          "sum": {
+                            "field": "system.memory.actual.free"
+                          }
+                        },
+                        "47": {
+                          "extended_stats": {
+                            "field": "system.memory.actual.free"
+                          }
+                        },
+                        "48": {
+                          "percentiles": {
+                            "field": "system.memory.actual.free",
+                            "percents": [
+                              25
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "49": {
+                          "percentiles": {
+                            "field": "system.memory.actual.free",
+                            "percents": [
+                              75
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "50": {
+                          "sum": {
+                            "field": "system.memory.actual.used.bytes"
+                          }
+                        },
+                        "51": {
+                          "extended_stats": {
+                            "field": "system.memory.free"
+                          }
+                        },
+                        "52": {
+                          "percentiles": {
+                            "field": "system.memory.free",
+                            "percents": [
+                              25
+                            ],
+                            "keyed": false
+                          }
+                        },
+                        "53": {
+                          "percentiles": {
+                            "field": "system.memory.free",
+                            "percents": [
+                              75
+                            ],
+                            "keyed": false
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "size": 0,
+  "_source": {
+    "excludes": []
+  },
+  "stored_fields": [
+    "*"
+  ],
+  "script_fields": {},
+  "docvalue_fields": [
+    {
+      "field": "@timestamp",
+      "format": "date_time"
+    },
+    {
+      "field": "system.process.cpu.start_time",
+      "format": "date_time"
+    },
+    {
+      "field": "timestamp",
+      "format": "date_time"
+    }
+  ],
+  "query": {
+    "bool": {
+      "must": [],
+      "filter": [
+        {
+          "match_all": {}
+        },
+        {
+          "range": {
+            "@timestamp": {
+              "format": "strict_date_optional_time",
+              "gte": "2019-11-17T10:00:00.000Z",
+              "lte": "2019-11-17T11:00:00.000Z"
+            }
+          }
+        }
+      ],
+      "should": [],
+      "must_not": []
+    }
+  }
+}

@@ -1,289 +1,310 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Oct  6 10:19:09 2019
+import pickle
+import json
+import os
+import re
 
-@author: Tsabar
-"""
+import pandas as pd
+import numpy as np
+from sklearn import preprocessing
+from math import pi
+import datetime as dt
+from pandas.io.json import json_normalize
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from joblib import dump
 
 from sklearn.ensemble import IsolationForest as IF
-import pickle
-import pandas as pd
-import matplotlib.pyplot as plt
-import json 
-from pandas.io.json import json_normalize
-import pandas as pd
-import datetime
-import bisect
-import collections
+from sklearn.decomposition import PCA
+from sklearn.neighbors import NearestNeighbors
 
-### display set
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
+from get_data import get_data
 
-## reading files - need to change to cloud and not locally
+le = preprocessing.LabelEncoder()
 
-with open (r'C:\Users\Tsabar\projects\monitor\json\test6.json') as json_file: X=json.load(json_file)
-X=json_normalize(X)
-X0=json_normalize(X)
-X1=json_normalize(X)
-X3=json_normalize(X)
+# setting agent hostname & creating hardware_fingerprint based on that - in the future hardwarefingerprint need to be based on actual hardware difference
 
-d={}
-df_list=[]
-for i in range(0,3):
-    df_list.append('X'+str(i))
-#    for i in df_list:
-#        d[i]=json_normalize(X)
-    for c in df_list:
-        exec('{} = json_normalize(X)'.format(c))
 
-d['X0'].head()
-#### Pandas profiling on coolab
+# categorical_cols = X.columns[categorical_feature_mask].tolist()
 
-### investigate on my own
 
-X2=X2.sort_values(by=['_source.@timestamp'])
-temp.to_csv('temporary_new_monitor')
-sum(X2.groupby('_id')['_id'].nunique())
-X2.groupby('_source.process.name')['_source.process.name','_id','_source.system.process.cpu.start_time'].nunique()
-list(X6.columns)
-X2.groupby( '_source.user.name')[ '_source.user.name'].count()
-X2.groupby(  '_source.@timestamp')[  '_source.system.process.summary.running'].count()
-X2[  '_source.system.process.summary.running'].count()
-X2('_source.system.process.summary.running').[  '_source.user.name'].count()
-X2[ '_source.@timestamp'].nunique()
-CPU=X2.loc[X2[ '_source.event.dataset']=='system.cpu']
-X2.groupby( '_source.system.cpu.softirq.pct')[ '_source.system.cpu.softirq.pct'].count()
-CPU['_source.system.cpu.idle.pct'].describe()
-CPU['_source.system.cpu.idle.pct'].count(0)
-plt.hist(CPU['_source.system.cpu.idle.pct'])
-X2[ '_source.system.uptime.duration.ms'].describe()
-plt.hist(X2[ '_source.system.memory.actual.used.bytes'])
-X2[ '_source.system.uptime.duration.ms'].nunique()
-X2[ '_source.tags'].head()
-plt.hist(X2['_source.system.process.cpu.total.pct'])
-X2[[ '_source.system.process.cpu.total.pct','_source.system.cpu.system.pct', '_source.system.cpu.user.pct']].describe()
- '_source.system.cpu.system.pct', '_source.system.cpu.user.pct'
-X2[['_source.system.cpu.system.pct', '_source.system.cpu.user.pct','_source.system.cpu.total.pct']].head()
+###################################################################
+###################################################################
+#######################   Functions    ############################
+###################################################################
+###################################################################
 
-#### aggregating data 1 minute window
-import datetime
-from sklearn.preprocessing import OneHotEncoder as oh
+def remove_illegal_path_chars(path):
+    return re.sub(r'[\\/\:*"<>\|\.%\$\^&£]', '', path)
 
-get_max = lambda x: x.value_counts(dropna=True).index[0]; get_max.__name__ = "most frequent"
 
-def moving_mean(x, N):
-    cumsum = numpy.cumsum(numpy.insert(x, 0, 0)) 
-    return (cumsum[N:] - cumsum[:-N]) / float(N)
+def get_iso_date(date):
+    return dt.datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
 
-def percentile_90(x):
-        return x.quantile(0.9)
-def percentile_75(x):
-        return x.quantile(0.75)
-def percentile_25(x):
-        return x.quantile(0.25)
-def percentile_10(x):
-        return x.quantile(0.1)
-def iqr(x):
-    return x.quantile(0.75)-x.quantile(0.25)
-def scatter(x):
-    if x.mean()!=0:
-        scatter=(x.mean()-x.median())/x.mean()
+
+def get_long_input(from_time, to_time, save_to_file=True, load_from_file=True, base_path=None):
+    time_range = pd.date_range(from_time, to_time, freq='1H', closed=None)
+    dfs = []
+    for i in range(0, len(time_range) - 1):
+        start_time = time_range[i]
+        end_time = time_range[i + 1]
+        print(f'from {start_time} to {end_time}')
+        dfs.append(get_input(get_iso_date(start_time), get_iso_date(end_time), save_to_file, load_from_file, base_path))
+    df = pd.concat(dfs)
+    return df
+
+
+def get_input(from_time, to_time, save_to_file=True, load_from_file=True, base_path=None):
+    file_path = f'train_{remove_illegal_path_chars(from_time)}_{remove_illegal_path_chars(to_time)}.json'
+    full_path = os.path.join(base_path, file_path) if base_path else file_path
+    if load_from_file and os.path.exists(full_path):
+        print('Loading data from file')
+        X = pd.read_json(full_path)
     else:
-        'mean 0'
-    return scatter
-
-    
-
-#def percentile(n):
-#    def percentile_(x):
-#        return x.quantile(n)
-#    percentile_.__name__ = 'percentile_{:2.0f}'.format(n*100)
-#    return percentile_
+        print('Getting data from elasticsearch')
+        X = get_data(host="elastic.monitor.net", from_time=from_time, to_time=to_time)
+        if save_to_file:
+            X.to_json(full_path)
+    return X
 
 
-# X0['_source.system.cpu.idle.pct']
-    
-# create list of functions for aggregation 
-    
+def add_features_n_NA(data):
+    data = data.fillna(0)
 
-stats_list=['sum', 'mean','std','median',percentile_25,percentile_75,iqr,percentile_10,percentile_90]
-col_order=['_source.@timestamp','_score','_source.event.duration','_source.system.cpu.softirq.pct','_source.system.cpu.user.pct','_source.system.cpu.total.pct',
-           '_source.system.cpu.irq.pct','_source.system.cpu.cores','_source.system.cpu.nice.pct','_source.system.cpu.idle.pct','_source.system.cpu.system.pct',
-           '_source.system.cpu.steal.pct','_source.system.cpu.iowait.pct','_source.system.memory.total','_source.system.memory.used.bytes',
-           '_source.system.memory.used.pct','_source.system.memory.actual.used.pct','_source.system.memory.actual.used.bytes',
-           '_source.system.memory.actual.free','_source.system.memory.swap.total','_source.system.memory.swap.used.bytes','_source.system.memory.swap.used.pct',
-           '_source.system.memory.swap.free','_source.system.memory.free','_source.system.process.cpu.total.value','_source.system.process.cpu.total.pct',
-           '_source.system.process.cpu.total.norm.pct','_source.system.process.memory.rss.pct','_source.system.process.memory.rss.bytes',
-           '_source.system.process.memory.size','_source.system.process.memory.share','_source.process.pgid','_source.process.pid','_source.process.ppid',
-           '_source.system.socket.summary.tcp.all.established','_source.system.socket.summary.tcp.all.close_wait',
-           '_source.system.socket.summary.tcp.all.listening','_source.system.socket.summary.tcp.all.count','_source.system.socket.summary.tcp.all.time_wait',
-           '_source.system.socket.summary.udp.all.count','_source.system.socket.summary.all.listening','_source.system.socket.summary.all.count',
-           '_source.system.network.out.errors','_source.system.network.out.bytes','_source.system.network.out.packets','_source.system.network.out.dropped',
-           '_source.system.network.in.errors','_source.system.network.in.bytes','_source.system.network.in.packets','_source.system.network.in.dropped',
-           '_source.system.process.summary.total','_source.system.process.summary.zombie','_source.system.process.summary.stopped',
-           '_source.system.process.summary.sleeping','_source.system.process.summary.idle','_source.system.process.summary.dead',
-           '_source.system.process.summary.unknown','_source.system.process.summary.running','_source.system.filesystem.total','_source.system.filesystem.files',
-           '_source.system.filesystem.free_files','_source.system.filesystem.available','_source.system.filesystem.used.pct',
-           '_source.system.filesystem.used.bytes','_source.system.filesystem.free','_source.system.fsstat.total_files','_source.system.fsstat.total_size.used',
-           '_source.system.fsstat.total_size.total','_source.system.fsstat.total_size.free','_source.system.fsstat.count','_source.system.uptime.duration.ms',
-           '_source.metricset.period','_source.event.dataset','_source.metricset.name','_source.system.process.cpu.start_time','_source.system.process.state',
-           '_source.user.name','_source.process.name','_source.system.process.cmdline','_source.process.args','_source.system.network.name',
-           '_source.system.filesystem.mount_point','_source.system.filesystem.type','_source.system.filesystem.device_name','host_fingerprint']
-X0=X0[col_order]
-col_num=['_source.@timestamp','_score','_source.event.duration','_source.system.cpu.softirq.pct','_source.system.cpu.user.pct','_source.system.cpu.total.pct','_source.system.cpu.irq.pct','_source.system.cpu.cores','_source.system.cpu.nice.pct','_source.system.cpu.idle.pct','_source.system.cpu.system.pct','_source.system.cpu.steal.pct','_source.system.cpu.iowait.pct','_source.system.memory.total','_source.system.memory.used.bytes','_source.system.memory.used.pct','_source.system.memory.actual.used.pct','_source.system.memory.actual.used.bytes','_source.system.memory.actual.free','_source.system.memory.swap.total','_source.system.memory.swap.used.bytes','_source.system.memory.swap.used.pct','_source.system.memory.swap.free','_source.system.memory.free','_source.system.process.cpu.total.value','_source.system.process.cpu.total.pct','_source.system.process.cpu.total.norm.pct','_source.system.process.memory.rss.pct','_source.system.process.memory.rss.bytes','_source.system.process.memory.size','_source.system.process.memory.share','_source.process.pgid','_source.process.pid','_source.process.ppid','_source.system.socket.summary.tcp.all.established','_source.system.socket.summary.tcp.all.close_wait','_source.system.socket.summary.tcp.all.listening','_source.system.socket.summary.tcp.all.count','_source.system.socket.summary.tcp.all.time_wait','_source.system.socket.summary.udp.all.count','_source.system.socket.summary.all.listening','_source.system.socket.summary.all.count','_source.system.network.out.errors','_source.system.network.out.bytes','_source.system.network.out.packets','_source.system.network.out.dropped','_source.system.network.in.errors','_source.system.network.in.bytes','_source.system.network.in.packets','_source.system.network.in.dropped','_source.system.process.summary.total','_source.system.process.summary.zombie','_source.system.process.summary.stopped','_source.system.process.summary.sleeping','_source.system.process.summary.idle','_source.system.process.summary.dead','_source.system.process.summary.unknown','_source.system.process.summary.running','_source.system.filesystem.total','_source.system.filesystem.files','_source.system.filesystem.free_files','_source.system.filesystem.available','_source.system.filesystem.used.pct','_source.system.filesystem.used.bytes','_source.system.filesystem.free','_source.system.fsstat.total_files','_source.system.fsstat.total_size.used','_source.system.fsstat.total_size.total','_source.system.fsstat.total_size.free','_source.system.fsstat.count','_source.system.uptime.duration.ms','_source.metricset.period']
-col_category=['_source.@timestamp','_source.event.dataset','_source.metricset.name','_source.system.process.cpu.start_time','_source.system.process.state','_source.user.name','_source.process.name','_source.system.process.cmdline','_source.process.args','_source.system.network.name','_source.system.filesystem.mount_point','_source.system.filesystem.type','_source.system.filesystem.device_name','host_fingerprint']
-col_category=['_source.@timestamp','_source.event.dataset','_source.metricset.name','_source.user.name','_source.process.name','_source.system.network.name','host_fingerprint']
-df_num=X0[col_num].set_index('_source.@timestamp').resample('T').agg(stats_list)
-df_category=X0[col_category].set_index('_source.@timestamp').resample('T').agg([get_max])
-df_category_numeric_index=pd.DataFrame()
-df_category_numeric=pd.DataFrame()
-for column in df_category:
-      df_category_numeric_index[column]=pd.factorize(df_category[column])
-      df_category_numeric[column]=pd.factorize(df_category[column])[0]
-df_category_numeric=df_category_numeric.set_index(df_category.index)
-df = pd.concat([df_category_numeric, df_num], axis=1)
-df_category.head()
+    data['host'] = data['host'].str.replace('comp', '')
+    data['host'] = data['host'].astype(int)
+
+    # data['timestamp'] = data['timestamp'].astype('int64') * 1000000
+    data['timestamp'] = pd.to_datetime(data['timestamp'])
+    data['hour'] = data.timestamp.dt.hour
+    data['day'] = (data['hour'] < 13) * 1
+    return data
 
 
-df_category[[1]
-df_category_new=df_category
-pd.DataFrame()
-df_category_new = df_category.stack()
-df_categoty_new = pd.Series(df_category_new.factorize()[0], index=df_category_new.index).unstack()
-print (df_categoty_new.stack().rank(method='dense').unstack())
-
-vals = df_category.stack().drop_duplicates().values
-b = [x for x in df_categoty_new.stack().drop_duplicates().rank(method='dense')]
-[x for x in df_categoty_new.stack().drop_duplicates().rank(method='dense')]
-
-d1 = dict(zip(b, vals))
-print (d1)
-print (df_categoty_new.stack().map(d1).unstack())
+def hardware_fingerprint(data):
+    data['hardware_fingerprint'] = np.nan
+    df_num_new['hardware_fingerprint'] = df_num_new[['hardware_fingerprint']].apply(lambda col: le.fit_transform(col))
+    data['hardware_fingerprint'] = data['system.cpu.cores_mean'].astype(str) + '_' + data[
+        'system.fsstat.total_size.total_mean'].astype(str) \
+                                   + '_' + data['system.filesystem.total_mean'].astype(str) + data[
+                                       'system.memory.total_mean'].astype(str)
+    data['hardware_fingerprint'] = data['hardware_fingerprint'].astype(int)
+    return data
 
 
-df_categoty_new_index
-vals = df_categoty_new_index.stack().drop_duplicates().values
-b = [x for x in df_categoty_new_index.stack().drop_duplicates().rank(method='dense')]
-
-d1 = dict(zip(b, vals))
-print (d1)
-d.factorize(df_category)
-df_category.rename(columns={"'_source.event.dataset', 'most frequent'":"event.dataset"}, errors="raise")
-df_category.columns=['event.dataset','metricset.name','user.name','process.name','network.name','host_fingerprint']
- "_source.metricset.name', 'most frequent": "metricset.name", "_source.user.name', 'most frequent": "user.name","_source.process.name', 'most frequent":"process.name","_source.system.network.name', 'most frequent":"network.name","host_fingerprint', 'most frequent":"host_fingerprint"
-df_category2 = pd.DataFrame({'data': df_category.unique(), 'data_new':range(len(data.data.unique()))})# create a temporary dataframe 
-df_category = df_category.merge(df_category2, on='data', how='left')# Now merge it by assigning different values to different strings.
-
-X0.iloc[:,0:72]
-#reorder the DF seperating categorical from numeric data
-X0['_source.@timestamp'][1]
-X0['_index'].nunique()
-get_max(X0['_source.event.duration'])
-X0['_source.@timestamp'][1].isoweekday()
-if X0['_source.@timestamp'][1].hour
-X0['_source.system.filesystem.device_name'].unique()
-X0['_source.process.args'].head()
-df=X0.set_index('_source.@timestamp').resample('T').agg(stats_list)
-
-df=X0.set_index('_source.@timestamp').resample('T').agg({'_source.system.cpu.idle.pct': stats_list})
-df=X0.set_index('_source.@timestamp').resample('T').agg({'_source.system.cpu.idle.pct': stats_list,'_source.process.name':[get_max]})
-
-df['day_night']=(df.index[15].hour<=19 and df.index[15].hour>=9)*1
-df['weekend']=(df.index[15].isoweekday()==6 or df.index[15].isoweekday()==5)*1
-df['hardware_fingerprint']=
+def fit_label_encoder(le, col):
+    label_encoder = preprocessing.LabelEncoder()
+    labels = label_encoder.fit_transform(col)
+    le[col.name] = label_encoder
+    return labels
 
 
-print (stats_list[1])
-stats_list[1]
-r=print (stats_list[1])
-temp_df=X0.agg({'_source.system.cpu.idle.pct': ['sum', 'mean','std','median',get_max,percentile(0.25),percentile(0.75),percentile(0.1),percentile(0.9),scatter]})
-    
-stats_list=['sum', 'mean','std','median']
-,['percentile(0.25),percentile(0.75),(percentile(0.75)-percentile(0.25)),percentile(0.1),percentile(0.9),pizor']]
-other_f="percentile(0.9)"+",pizor"
-
-stats_list=['sum',other_f]
-
-stats_list=['sum', 'mean','std','median',percentile(0.25),percentile(0.75),(percentile(0.75)-percentile(0.25)),percentile(0.1),percentile(0.9),pizor]
-X0['_source.system.cpu.idle.pct'].quantile(0.1)
-X0['_source.system.cpu.idle.pct'].pizor()
-X0['_source.system.memory.total'].count()
-rolling_mean = X0.y.rolling(window=20).mean()
-list(X0.columns)
-X0.dtypes
-'_source.@timestamp'
-X0['_source.@timestamp'] = pd.to_datetime(X0['_source.@timestamp'])
-X0['host_fingerprint']=X0['_source.host.architecture']+'_'+X0['_source.host.os.kernel']+'_'+X0['_source.host.os.name']
-X0['_source.host.architecture'].isna().sum()
-X0['_source.host.os.kernel'].isna().sum()
-X0['_source.host.os.name'].isna().sum()
-get_max(X0['_source.process.name'])
-X0['_source.process.name'].head()
-X0.groupby('_source.process.name').count()
-X0['_source.process.name'].value_counts(dropna=True).index[0]
-X0[['_source.host.architecture','_source.host.os.kernel','_source.host.os.name']].apply(isnan)
-#X0['hardware_fingerprint']= X0['_source.system.cpu.cores']+'_'+X0['_source.system.filesystem.total']+'_'+X0['_source.system.fsstat.total_size.total']+'_'+X0['_source.system.memory.total']
-
-df=X0.set_index('_source.@timestamp').resample('T').agg({'_source.system.cpu.idle.pct': ['sum', 'mean'],'_source.process.name':[get_max]})
-
-import numpy as np
-X0['_source.system.cpu.idle.pct'].agg([np.sum, np.median, percentile(0.1)])
-temp=X0.groupby(['_score', pd.Grouper(key='_source.@timestamp', freq='T')]).agg({'_source.system.memory.total':['sum']})
-X0.groupby(['_score', pd.Grouper(key='_source.@timestamp', freq='A-DEC')]).agg({'_source.system.memory.total':['sum']})
-pd.Grouper(key='_source.@timestamp', freq='A-DEC')]).agg({'_source.system.memory.total':['sum']})
-pd.Grouper(key=X0['_source.@timestamp'], freq='A-DEC')['_source.system.memory.total'].sum()
-pd.Grouper(key='_source.@timestamp', freq='M').agg('_source.system.memory.total'=sum())
-X_count=
-X_mea
+def convert_categorical_to_int(data, le, train_le=True):
+    categorical_feature_mask = data.dtypes == object
+    categorical_cols = data.columns[categorical_feature_mask].tolist()
+    data[categorical_cols] = data[categorical_cols].apply(
+        lambda col: fit_label_encoder(le, col) if train_le else le[col.name].transform(col))
+    data[categorical_cols] = data[categorical_cols].astype(int)
 
 
+def drop_constant(df):
+    # X=pd.DataFrame()
+    data = df.fillna(0, inplace=True)
+    data = data.loc[:, (data != data.iloc[0]).any()]
+    return data
 
 
-#import bisect
-#import collections
-#import pandas as pd
-#import pandas.TimeGrouper as TG
-#pd.Tim
-#X6.index = pd.to_datetime(X6.index)
-#X7.index = pd.to_datetime(X7.index)
-#X6.groupby(pd.TimeGrouper(freq='60Min'))
-#X_new=X7.groupby(pd.Grouper(key='_source.system.memory.used.bytes', freq='60s'))
-#X=X6.groupby([X6.index.minute]).sum()
-#X=X6.groupby([X6.index.minute]).sum()
-#X=X6.groupby([X6['_source.system.memory.used.bytes'],pd.TimeGrouper(freq='Min')])
-#X_sum=X6.groupby(pd.TimeGrouper('1Min')).sum() 
-#X_count=X6.groupby(pd.TimeGrouper('1Min')).count() 
-#X_max=X6.groupby(pd.TimeGrouper('1Min')).max() 
-#X_min=X6.groupby(pd.TimeGrouper('1Min')).min() 
-#X_pct10=X6.groupby(pd.TimeGrouper('1Min')).quantile(.1) 
-#X_pct25=X6.groupby(pd.TimeGrouper('1Min')).quantile(.25) 
-#X_median=X6.groupby(pd.TimeGrouper('1Min')).median() 
-#X_pct75=X6.groupby(pd.TimeGrouper('1Min')).quantile(.75) 
-#X_pct90=X6.groupby(pd.TimeGrouper('1Min')).quantile(.9) 
-#X_mean_=X6.groupby(pd.TimeGrouper('1Min')).mean() 
-#list(X6.columns)
-#X6['_source.system.memory.swap.free'].mean()
-## model
-
-train=df.dropna(1)
-train=df.loc[:, (df != df.iloc[0]).any()]
-train=train.dropna(1)
-
-train=df.dropna(1)
-train[train.isna()==True]
-clf=IF(behaviour='new',max_samples=100,random_state=1,contamination='auto')
-
-preds=clf.fit_predict(train)
-list(preds).count(-1)
-list(preds)
+def drop_colinearity(df, auto_corelation=0.9):
+    X = df
+    corr_matrix = X.corr().abs()
+    # Select upper triangle of correlation matrix
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+    # Find index of feature columns with correlation greater than 0.9
+    to_drop = [column for column in upper.columns if any(upper[column] > auto_corelation)]
+    # Drop features
+    X.drop(X[to_drop], axis=1, inplace=True)
+    return X
 
 
-pickle.dump(clf,open('pkl_file','wb'))
+# model function
+def all_but_timestamp(data):
+    return data.loc[:, data.columns != 'timestamp']
 
-# pca the X_train
-plt.scatter(random_data2[:,:1],random_data2[:,1:2],)
-random_data2[:,:1].shape
-random_data2[:,:2].shape
-preds2.shape
-print(random_data2[:,:0])
+
+def model_isof(data, behaviour='new', max_samples=2500, max_features=20, bootstrap=True, random_state=42,
+               contamination=0.005, verbose=0):
+    model = IF(behaviour=behaviour, max_samples=max_samples, max_features=max_features, bootstrap= bootstrap, random_state=random_state, contamination=contamination,
+               verbose=verbose)
+    model.fit(all_but_timestamp(data))
+    return model
+
+
+def predict(model, data):
+    y_pred = model.predict(all_but_timestamp(data))
+    metrics_df = pd.DataFrame()
+    metrics_df['anomaly'] = y_pred
+    outliers = metrics_df.loc[metrics_df['anomaly'] == -1]
+    outlier_index = list(outliers.index)
+    anomaly_table=data[['host', 'timestamp']].iloc[outlier_index]
+    return y_pred, outlier_index, anomaly_table
+
+
+def save_model(model, output_path):
+    dump(model, output_path)
+
+
+# Export Anomaly Data
+def save_anomalies(data, outlier_index, path):
+    data.iloc[model[outlier_index]].to_csv('anomalies.csv')
+
+
+# save_anomalies(('/content/drive/monitor_data'))
+
+# Commented out IPython magic to ensure Python compatibility.
+# this function plots the anomalies and extract the PC fetures' weights:
+
+def pca_3d_components(data):
+    pca = PCA(n_components=3)  # Reduce to k=3 dimensions
+    scaler = preprocessing.StandardScaler()
+    # normalize the metrics
+    df = scaler.fit_transform(all_but_timestamp(data))
+    X_PCA = pca.fit_transform(df)
+    return X_PCA
+
+
+def pca_3d_plot(data_pca, outlier_index):
+    plt.clf()
+    plt.close()
+    fig = plt.figure(figsize=(20, 10))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel("x_composite_1")
+    ax.set_ylabel("x_composite_2")
+    ax.set_zlabel("x_composite_3")
+    # Plot the compressed data points
+    ax.scatter(data_pca[:, 0], data_pca[:, 1], zs=data_pca[:, 2], s=10, lw=1, label="inliers", c="green")
+    # Plot x's for the ground truth outliers
+    ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=60,
+               marker="x", c="red", label="outliers", alpha=0.5)
+    # for angle in range(0, 360):
+    #     ax.view_init(10, 10)
+    #     plt.draw()
+    #     plt.pause(10)
+
+    ax.legend()
+    plt.show()
+
+
+def export_PCA(export_data, data_name='export_data_aws_comp20.csv'):
+    export_data.to_csv(data_name)
+
+
+# def find_normal_neighbour(data):
+#     nbrs = NearestNeighbors(n_neighbors=3, algorithm='ball_tree').fit(data)
+#     distances, indices = nbrs.kneighbors(data)
+#     return list(indices)
+#
+#
+# for i in len(find_normal_neighbour(train)):
+#     for j in len(i):
+#         print(j)
+#         # if (j==1)
+#         print(i)
+
+
+def radar_chart(pca_data, anomaly_index, normal_index):
+    mms = preprocessing.MinMaxScaler()
+    df = mms.fit_transform(pca_data)
+    df = pd.DataFrame(df)
+
+    # number of variable
+    categories = list(df)
+    N = len(categories)
+
+    # We are going to plot the first line of the data frame.
+    # But we need to repeat the first value to close the circular graph:
+    # values=df.loc[0].drop('group').values.flatten().tolist()
+    # values1=df.loc[106].drop('group').values.flatten().tolist()
+    values = df.loc[normal_index].values.flatten().tolist()
+    values1 = df.loc[anomaly_index].values.flatten().tolist()
+    values += values[:1]
+    values1 += values1[:1]
+
+    # What will be the angle of each axis in the plot? (we divide the plot / number of variable)
+    angles = [n / float(N) * 2 * pi for n in range(N)]
+    angles += angles[:1]
+    print(angles, float(N))
+    # Initialise the spider plot
+    plt.figure(figsize=(10, 20))
+    ax = plt.subplot(111, polar=True)
+
+    # Draw one axe per variable + add labels labels yet
+    plt.xticks(angles[:-1], categories, color='grey', size=8)
+
+    # Draw ylabels
+    ax.set_rlabel_position(0)
+    plt.yticks([0.1, 0.3, 0.5, 0.7, 1], ["0.1", "0.3", "0.5", "0.7", "1.0"], color="grey", size=7)
+    plt.ylim(0, 1)
+
+    # Plot data
+    ax.plot(angles, values, linewidth=1, linestyle='solid')
+    ax.plot(angles, values1, linewidth=1, linestyle='solid')
+    # Fill area
+    ax.fill(angles, values, 'b', alpha=0.1)
+    ax.fill(angles, values1, 'r', alpha=0.1)
+
+    plt.show()
+
+
+###################################################################
+###################################################################
+####################   Loading Data    ############################
+###################################################################
+###################################################################
+
+print('Getting train data...')
+train = get_long_input(from_time='2019-11-14T10:00:00.000Z', to_time='2019-11-14T20:00:00.000Z')
+print('Getting test data...')
+test = get_input(from_time='2019-11-18T10:00:00.000Z', to_time='2019-11-18T10:10:00.000Z', save_to_file=False)
+
+###################################################################
+###################################################################
+##########################   Model    #############################
+###################################################################
+###################################################################
+print('Preparing data for model...')
+le = {}
+train = add_features_n_NA(train)
+convert_categorical_to_int(train, le)
+
+test = add_features_n_NA(test)
+convert_categorical_to_int(test, le, False)
+
+print('Training model...')
+isof = model_isof(train, contamination=0.2)
+
+print('Predicting on train and test sets...')
+train_pred,train_outlier,train_table=predict(isof,train)
+test_pred,test_outlier,test_table=predict(isof,test)
+
+print('Plotting results:')
+print(test_table)
+
+X=pd.concat([test, train])
+X_PCA = pca_3d_components(X)
+pca_3d_plot(X_PCA, test_outlier)
+
+# X_PCA.components_
+# X_PCA.explained_variance_
+
+
+#
+# data_scaled = pd.DataFrame(preprocessing.scale(train), columns=train.columns)
+# data_scaled.head(10)
+# pca = PCA(n_components=3)
+# pca.fit_transform(data_scaled)
+# export_data = pd.DataFrame(pca.components_, columns=data_scaled.columns, index=['PC-1', 'PC-2', 'PC-3'])
+# # exporting PCA components
+# # from google.colab import files
+#
+#
+# print(pca.explained_variance_ratio_)
