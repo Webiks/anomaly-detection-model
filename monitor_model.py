@@ -49,9 +49,13 @@ def get_long_input(from_time, to_time, save_to_file=True, load_from_file=True, b
         start_time = time_range[i]
         end_time = time_range[i + 1]
         print(f'from {start_time} to {end_time}')
-        dfs.append(get_input(get_iso_date(start_time), get_iso_date(end_time), save_to_file, load_from_file, base_path))
+        X = get_input(get_iso_date(start_time), get_iso_date(end_time), save_to_file, load_from_file, base_path)
+        if X is not None:
+            dfs.append(X)
     df = pd.concat(dfs)
     return df
+
+
 
 
 def get_input(from_time, to_time, save_to_file=True, load_from_file=True, base_path=None):
@@ -63,8 +67,11 @@ def get_input(from_time, to_time, save_to_file=True, load_from_file=True, base_p
     else:
         print('Getting data from elasticsearch')
         X = get_data(host="elastic.monitor.net", from_time=from_time, to_time=to_time)
-        if save_to_file:
-            X.to_json(full_path)
+        if X is not None:
+            X['timestamp'] = X['timestamp'].astype('int64') * 1000000
+            if save_to_file:
+                X.to_json(full_path)
+
     return X
 
 
@@ -262,31 +269,31 @@ def radar_chart(pca_data, anomaly_index, normal_index):
 ###################################################################
 
 print('Getting train data...')
-train = get_long_input(from_time='2019-11-14T10:00:00.000Z', to_time='2019-11-14T20:00:00.000Z')
-print('Getting test data...')
-test = get_input(from_time='2019-11-18T10:00:00.000Z', to_time='2019-11-18T10:10:00.000Z', save_to_file=False)
-
-###################################################################
-###################################################################
-##########################   Model    #############################
-###################################################################
-###################################################################
+train = get_long_input(from_time='2019-11-14T10:00:00.000Z', to_time='2019-11-16T20:00:00.000Z')
 print('Preparing data for model...')
 le = {}
 train = add_features_n_NA(train)
 convert_categorical_to_int(train, le)
 
-test = add_features_n_NA(test)
-convert_categorical_to_int(test, le, False)
-
 print('Training model...')
 isof = model_isof(train, contamination=0.2)
 
-print('Predicting on train and test sets...')
+print('Predicting on train set...')
 train_pred,train_outlier,train_table=predict(isof,train)
-test_pred,test_outlier,test_table=predict(isof,test)
 
-print('Plotting results:')
+print('Getting test data...')
+test = get_input(from_time='2019-11-18T10:00:00.000Z', to_time='2019-11-18T10:10:00.000Z', save_to_file=False)
+test = add_features_n_NA(test)
+convert_categorical_to_int(test, le, False)
+print('Predicting on test set...')
+test_pred, test_outlier, test_table = predict(isof, test)
+
+test_table['host']= ('Comp_') + test_table['host'].astype(str)
+print(test.timestamp.head(10))
+
+
+
+print('Anomalies:')
 print(test_table)
 
 X=pd.concat([test, train])
