@@ -179,27 +179,6 @@ def pca_3d_components(data):
     X_PCA = pca.fit_transform(df)
     return X_PCA
 
-
-# def pca_3d_plot(data_pca, outlier_index):
-#     plt.clf()
-#     plt.close()
-#     fig = plt.figure(figsize=(20, 10))
-#     ax = fig.add_subplot(111, projection='3d')
-#     ax.set_xlabel("x_composite_1")
-#     ax.set_ylabel("x_composite_2")
-#     ax.set_zlabel("x_composite_3")
-#     # Plot the compressed data points
-#     ax.scatter(data_pca[:, 0], data_pca[:, 1], zs=data_pca[:, 2], s=10, lw=1, label="inliers", c="green")
-#     # Plot x's for the ground truth outliers
-#     ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=60,
-#                marker="x", c="red", label="outliers", alpha=0.5)
-#     # for angle in range(0, 360):
-#     #     ax.view_init(10, 10)
-#     #     plt.draw()
-#     #     plt.pause(10)
-#
-#     ax.legend()
-#     plt.show()
 def pca_3d_plot(train, test, outlier_index):
     X = pd.concat([test, train])
     data_pca = pca_3d_components(X)
@@ -211,11 +190,16 @@ def pca_3d_plot(train, test, outlier_index):
     ax.set_ylabel("x_composite_2")
     ax.set_zlabel("x_composite_3")
     # Plot the compressed data points
-    ax.scatter(data_pca[:int(len(test.index)), 0], data_pca[:int(len(test.index)), 1], zs=data_pca[:int(len(test.index)), 2], s=10, lw=1, label="inliers_train", c="green")
-    ax.scatter(data_pca[int(len(test.index)):int(len(train.index)), 0], data_pca[int(len(test.index)):int(len(train.index)), 1], zs=data_pca[int(len(test.index)):int(len(train.index)), 2], s=10, lw=1, label="inliers_test", c="blue")
+    ax.scatter(data_pca[:int(len(train.index)), 0], data_pca[:int(len(train.index)), 1], zs=data_pca[:int(len(train.index)), 2], s=10, lw=1, label="inliers_train", c="green")
+    ax.scatter(data_pca[int(len(train.index)):, 0], data_pca[int(len(train.index)):, 1], zs=data_pca[int(len(train.index)):, 2], s=100, lw=1, label="inliers_train", c="blue")
     # Plot x's for the ground truth outliers
     ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=80,
                marker="x", c="red", label="outliers", alpha=0.5)
+
+    def tsne_3d_plot(train, test, outlier_index):
+        
+
+
     # for angle in range(0, 360):
     #     ax.view_init(10, 10)
     #     plt.draw()
