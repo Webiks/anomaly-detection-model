@@ -115,6 +115,8 @@ def get_data(index='metricbeat-*', from_time='now-5m', to_time='now', host='loca
         search = Search(using=elastic_client)
         search, count_fields, extended_fields, iqr_fields = build_query(search, index, from_time, to_time, options)
         response = search.execute()
+        if len(response.aggregations.timestamp.buckets) == 0:
+            return None
         df = build_generic_aggregations_dataframe(response, count_fields, extended_fields)
         if iqr_fields and len(iqr_fields) > 0:
             df = calculate_iqr_fields(df, iqr_fields)
