@@ -198,6 +198,48 @@ def export_PCA(export_data, data_name='export_data_aws_comp20.csv'):
 #         print(j)
 #         # if (j==1)
 #         print(i)
+def pca_xd_components(data,components):
+    pca = PCA(n_components=components)  # Reduce to k=3 dimensions
+    scaler = preprocessing.StandardScaler()
+    # normalize the metrics
+    df = scaler.fit_transform(all_but_timestamp(data))
+    X_PCA = pca.fit_transform(df)
+    return X_PCA
+
+def pca_xd_plot( test, outlier_index, train=None,components=2):
+    X = pd.concat([test, train])
+    data_pca = pca_xd_components(X,components)
+    plt.clf()
+    plt.close()
+    fig = plt.figure(figsize=(20, 10))
+    if components==3:
+        ax = fig.add_subplot(111, projection='3d')
+    else:
+        ax = fig.add_subplot(111)
+    ax.set_xlabel("x_composite_1")
+    ax.set_ylabel("x_composite_2")
+    if components==3:
+        ax.set_zlabel("x_composite_3")
+    # Plot the compressed data points
+    if components==2:
+        ax.scatter(data_pca[:int(len(test.index)), 0], data_pca[:int(len(test.index)), 1], s=10, lw=1, label="inliers_test", c="green")
+        ax.scatter(data_pca[int(len(test.index)):, 0], data_pca[int(len(test.index)):, 1], s=10, lw=1, label="inliers_train", c="blue")
+        # Plot x's for the ground truth outliers
+        ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], lw=2, s=200, marker="x", c="red", label="outliers", alpha=0.5)
+    else:
+        ax.scatter(data_pca[:int(len(test.index)), 0], data_pca[:int(len(test.index)), 1], zs=data_pca[:int(len(test.index)), 2], s=10, lw=1, label="inliers_test", c="green")
+        ax.scatter(data_pca[int(len(test.index)):, 0], data_pca[int(len(test.index)):, 1], zs=data_pca[int(len(test.index)):, 2], s=10, lw=1, label="inliers_train", c="blue")
+    # Plot x's for the ground truth outliers
+        ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=200,
+               marker="x", c="red", label="outliers", alpha=0.5)
+
+    # for angle in range(0, 360):
+    #     ax.view_init(10, 10)
+    #     plt.draw()
+    #     plt.pause(10)
+
+    ax.legend()
+    plt.show()
 
 
 def radar_chart(pca_data, anomaly_index, normal_index):
@@ -246,14 +288,14 @@ def radar_chart(pca_data, anomaly_index, normal_index):
 
 def generate_and_test_model():
     print('Getting train data...')
-    train = get_long_input(from_time='2019-11-17T08:00:00.000Z', to_time='2019-11-18T22:00:00.000Z')
+    train = get_long_input(from_time='2019-11-17T08:00:00.000Z', to_time='2019-11-20T21:00:00.000Z')
     print('Preparing data for model...')
     le = {}
     train = add_features_n_NA(train)
     convert_categorical_to_int(train, le)
 
     print('Training model...')
-    isof = model_isof(train, contamination=0.001)
+    isof = model_isof(train, contamination=0.02)
     save_model(isof, 'model_V0.clf')
 
     print('Predicting on train set...')
@@ -261,22 +303,22 @@ def generate_and_test_model():
 
     print('Getting test data...')
     # test = get_input(from_time='2019-11-19T10:00:00.000Z', to_time='2019-11-19T10:10:00.000Z', save_to_file=False)
-    test = get_input(from_time='now-1d', to_time='now', save_to_file=False)
+    test = get_input(from_time='now-19m', to_time='now', save_to_file=False)
     test = add_features_n_NA(test)
     convert_categorical_to_int(test, le, False)
     print('Predicting on test set...')
-    test_pred, test_outlier, test_table = predict(isof, test)
+    test_pred, test_outlier, test_anomaly_table = predict(isof, test)
 
-    test_table['host']= ('Comp_') + test_table['host'].astype(str)
-    print(test.timestamp.head(10))
+    test_anomaly_table['host']= ('Comp_') + test_anomaly_table['host'].astype(str)
 
     print('Anomalies:')
-    print(test_table)
+    print(test_anomaly_table)
 
-    X=pd.concat([test, train])
-    paint_test=len(test.index)
-    X_PCA = pca_3d_components(X)
-    pca_3d_plot(train,test, test_outlier)
+    # X=pd.concat([test, train])
+    # paint_test=len(test.index)
+    # X_PCA = pca_3d_components(X)
+    pca_xd_plot(test, outlier_index=test_outlier, train=None,components=2)
+    pca_xd_plot(test, outlier_index=test_outlier, train=None,components=3)
 
     # X_PCA.components_
     # X_PCA.explained_variance_
