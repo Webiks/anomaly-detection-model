@@ -2,7 +2,7 @@ import pickle
 import json
 import os
 import re
-
+from time import time
 import pandas as pd
 import numpy as np
 from sklearn import preprocessing
@@ -16,6 +16,7 @@ from joblib import dump
 
 from sklearn.ensemble import IsolationForest as IF
 from sklearn.decomposition import PCA
+from sklearn import manifold
 from sklearn.neighbors import NearestNeighbors
 
 from get_data import get_data
@@ -139,9 +140,9 @@ def all_but_timestamp(data):
     return data.loc[:, data.columns != 'timestamp']
 
 
-def model_isof(data, behaviour='new', max_samples=2500, max_features=20, bootstrap=True, random_state=42,
-               contamination=0.005, verbose=0):
-    model = IF(behaviour=behaviour, max_samples=max_samples, max_features=max_features, bootstrap= bootstrap, random_state=random_state, contamination=contamination,
+def model_isof(data, behaviour='new', max_samples=15000, max_features=60, bootstrap=True, random_state=13,
+               contamination=0.001, verbose=0):
+    model = IF(behaviour=behaviour, max_samples=max_samples, max_features=max_features,bootstrap= bootstrap, random_state=random_state, contamination=contamination,
                verbose=verbose)
     model.fit(all_but_timestamp(data))
     return model
@@ -178,27 +179,41 @@ def pca_3d_components(data):
     df = scaler.fit_transform(all_but_timestamp(data))
     X_PCA = pca.fit_transform(df)
     return X_PCA
+def pca_xd_components(data,components):
+    pca = PCA(n_components=components)  # Reduce to k=3 dimensions
+    scaler = preprocessing.StandardScaler()
+    # normalize the metrics
+    df = scaler.fit_transform(all_but_timestamp(data))
+    X_PCA = pca.fit_transform(df)
+    return X_PCA
 
-def pca_3d_plot(train, test, outlier_index):
+
+def pca_xd_plot( test, outlier_index, train=None,components=2):
     X = pd.concat([test, train])
-    data_pca = pca_3d_components(X)
+    data_pca = pca_xd_components(X,components)
     plt.clf()
     plt.close()
     fig = plt.figure(figsize=(20, 10))
-    ax = fig.add_subplot(111, projection='3d')
+    if components==3:
+        ax = fig.add_subplot(111, projection='3d')
+    else:
+        ax = fig.add_subplot(111)
     ax.set_xlabel("x_composite_1")
     ax.set_ylabel("x_composite_2")
-    ax.set_zlabel("x_composite_3")
+    if components==3:
+        ax.set_zlabel("x_composite_3")
     # Plot the compressed data points
-    ax.scatter(data_pca[:int(len(train.index)), 0], data_pca[:int(len(train.index)), 1], zs=data_pca[:int(len(train.index)), 2], s=10, lw=1, label="inliers_train", c="green")
-    ax.scatter(data_pca[int(len(train.index)):, 0], data_pca[int(len(train.index)):, 1], zs=data_pca[int(len(train.index)):, 2], s=100, lw=1, label="inliers_train", c="blue")
+    if components==2:
+        ax.scatter(data_pca[:int(len(test.index)), 0], data_pca[:int(len(test.index)), 1], s=10, lw=1, label="inliers_test", c="green")
+        ax.scatter(data_pca[int(len(test.index)):, 0], data_pca[int(len(test.index)):, 1], s=10, lw=1, label="inliers_train", c="blue")
+        # Plot x's for the ground truth outliers
+        ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], lw=2, s=200, marker="x", c="red", label="outliers", alpha=0.5)
+    else:
+        ax.scatter(data_pca[:int(len(test.index)), 0], data_pca[:int(len(test.index)), 1], zs=data_pca[:int(len(test.index)), 2], s=10, lw=1, label="inliers_test", c="green")
+        ax.scatter(data_pca[int(len(test.index)):, 0], data_pca[int(len(test.index)):, 1], zs=data_pca[int(len(test.index)):, 2], s=10, lw=1, label="inliers_train", c="blue")
     # Plot x's for the ground truth outliers
-    ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=80,
+        ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=200,
                marker="x", c="red", label="outliers", alpha=0.5)
-
-    def tsne_3d_plot(train, test, outlier_index):
-        
-
 
     # for angle in range(0, 360):
     #     ax.view_init(10, 10)
@@ -207,6 +222,41 @@ def pca_3d_plot(train, test, outlier_index):
 
     ax.legend()
     plt.show()
+
+
+def plotly_3d(test, train, outlier_index):
+    import plotly.express as px
+    X = pd.concat([test, train])
+    X['anomaly']=[]
+    if X.index in outlier_index:
+        X['anomaly']=1
+    elif X.index in test.index:
+        X['anomaly'] = 2
+    else:
+        X['anomaly'] = 3
+    Y = px.data.X()
+    fig = px.scatter_3d(Y, x="PC_1", y="PC_2", z="PC_3", color="anomaly", size="total",
+                        hover_name="district",
+                        symbol="result", color_discrete_map={"3": "blue", "2": "green", "1": "red"})
+    fig.show()
+def tsne_2d_plot(train, test, outlier_index):
+
+    tsne = manifold.TSNE(n_components=2, random_state=0)
+    X=test
+    X = pd.concat([all_but_timestamp(test), all_but_timestamp(train)])
+    Y = tsne.fit_transform(X)
+    plt.scatter(Y[:, 0], Y[:, 1], c='green', clabel="inliers_train")
+    # plt.scatter(Y[:, 0], Y[:, 1], c='blue', label="inliers_test")
+    # plt.scatter(Y[:, 0], Y[:, 1], c='blue', label="inliers_test")
+    # plt.scatter(Y[:, 0], Y[:, 1], c=color, cmap=plt.cm.Spectral)
+
+    ax.xaxis.set_major_formatter(NullFormatter())
+    ax.yaxis.set_major_formatter(NullFormatter())
+    plt.axis('tight')
+
+    plt.show()
+
+
 
 def export_PCA(export_data, data_name='export_data_aws_comp20.csv'):
     export_data.to_csv(data_name)
@@ -276,39 +326,47 @@ def radar_chart(pca_data, anomaly_index, normal_index):
 ###################################################################
 
 print('Getting train data...')
-train = get_long_input(from_time='2019-11-17T08:00:00.000Z', to_time='2019-11-18T22:00:00.000Z')
+t0 = time()
+
+
+train = get_long_input(from_time='2019-11-18T08:00:00.000Z', to_time='2019-11-18T21:00:00.000Z')
 print('Preparing data for model...')
 le = {}
 train = add_features_n_NA(train)
 convert_categorical_to_int(train, le)
+# train=pca_xd_components(train,10)
 
 print('Training model...')
-isof = model_isof(train, contamination=0.2)
+isof = model_isof(train, contamination=0.001)
 save_model(isof,'model_V0.clf')
-
+t1 = time()
+print("training time (%.2g min)" % ((t1 - t0)/60))
 print('Predicting on train set...')
 train_pred,train_outlier,train_table=predict(isof,train)
 
 print('Getting test data...')
-#test = get_input(from_time='2019-11-19T10:00:00.000Z', to_time='2019-11-19T10:10:00.000Z', save_to_file=False)
-test = get_input(from_time='now-70m', to_time='now-60m', save_to_file=False)
+test = get_long_input(from_time='2019-11-26T09:00:00.000Z', to_time='2019-11-26T12:00:00.000Z', save_to_file=False)
+# test = get_input(from_time='now-10m', to_time='now', save_to_file=False)
 test = add_features_n_NA(test)
 convert_categorical_to_int(test, le, False)
 print('Predicting on test set...')
 test_pred, test_outlier, test_table = predict(isof, test)
 
 test_table['host']= ('Comp_') + test_table['host'].astype(str)
-print(test.timestamp.head(10))
-
+print(test.shape)
+print(train.shape)
+print(len(test_table.index))
 
 
 print('Anomalies:')
 print(test_table)
+pca_xd_plot(test=test, outlier_index=test_outlier, train=train, components=2)
 
-X=pd.concat([test, train])
-paint_test=len(test.index)
-X_PCA = pca_3d_components(X)
-pca_3d_plot(train,test, test_outlier)
+test=test.reset_index()
+print(test)
+# tsne_3d_plot(train,test, test_outlier)
+
+
 
 # X_PCA.components_
 # X_PCA.explained_variance_
