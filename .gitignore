@@ -107,3 +107,6 @@ data.json
 
 # train dataframes
 train*.json
+
+# models
+*.clf
