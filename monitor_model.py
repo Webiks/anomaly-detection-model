@@ -1,38 +1,28 @@
-import pickle
-import json
 import os
 import re
+import datetime as dt
+from joblib import dump
+from math import pi
 
 import pandas as pd
 import numpy as np
 from sklearn import preprocessing
-from math import pi
-import datetime as dt
-from pandas.io.json import json_normalize
-
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from joblib import dump
-
 from sklearn.ensemble import IsolationForest as IF
 from sklearn.decomposition import PCA
-from sklearn.neighbors import NearestNeighbors
+# from sklearn.neighbors import NearestNeighbors
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 
 from get_data import get_data
 
-le = preprocessing.LabelEncoder()
-
-# setting agent hostname & creating hardware_fingerprint based on that - in the future hardwarefingerprint need to be based on actual hardware difference
-
-
-# categorical_cols = X.columns[categorical_feature_mask].tolist()
-
-
+# TODO setting agent hostname & creating hardware_fingerprint based on that -
+# in the future hardwarefingerprint need to be based on actual hardware difference
 ###################################################################
 ###################################################################
 #######################   Functions    ############################
 ###################################################################
 ###################################################################
+
 
 def remove_illegal_path_chars(path):
     return re.sub(r'[\\/\:*"<>\|\.%\$\^&£]', '', path)
@@ -54,8 +44,6 @@ def get_long_input(from_time, to_time, save_to_file=True, load_from_file=True, b
             dfs.append(X)
     df = pd.concat(dfs)
     return df
-
-
 
 
 def get_input(from_time, to_time, save_to_file=True, load_from_file=True, base_path=None):
@@ -89,15 +77,15 @@ def add_features_n_NA(data):
     return data
 
 
-def hardware_fingerprint(data):
-    data['hardware_fingerprint'] = np.nan
-    df_num_new['hardware_fingerprint'] = df_num_new[['hardware_fingerprint']].apply(lambda col: le.fit_transform(col))
-    data['hardware_fingerprint'] = data['system.cpu.cores_mean'].astype(str) + '_' + data[
-        'system.fsstat.total_size.total_mean'].astype(str) \
-                                   + '_' + data['system.filesystem.total_mean'].astype(str) + data[
-                                       'system.memory.total_mean'].astype(str)
-    data['hardware_fingerprint'] = data['hardware_fingerprint'].astype(int)
-    return data
+# def hardware_fingerprint(data):
+#     data['hardware_fingerprint'] = np.nan
+#     df_num_new['hardware_fingerprint'] = df_num_new[['hardware_fingerprint']].apply(lambda col: le.fit_transform(col))
+#     data['hardware_fingerprint'] = data['system.cpu.cores_mean'].astype(str) + '_' + data[
+#         'system.fsstat.total_size.total_mean'].astype(str) \
+#                                    + '_' + data['system.filesystem.total_mean'].astype(str) + data[
+#                                        'system.memory.total_mean'].astype(str)
+#     data['hardware_fingerprint'] = data['hardware_fingerprint'].astype(int)
+#     return data
 
 
 def fit_label_encoder(le, col):
@@ -161,15 +149,9 @@ def save_model(model, output_path):
     dump(model, output_path)
 
 
-# Export Anomaly Data
-def save_anomalies(data, outlier_index, path):
-    data.iloc[model[outlier_index]].to_csv('anomalies.csv')
+def save_anomalies(model, data, outlier_index, path='anomalies.csv'):
+    data.iloc[model[outlier_index]].to_csv(path)
 
-
-# save_anomalies(('/content/drive/monitor_data'))
-
-# Commented out IPython magic to ensure Python compatibility.
-# this function plots the anomalies and extract the PC fetures' weights:
 
 def pca_3d_components(data):
     pca = PCA(n_components=3)  # Reduce to k=3 dimensions
@@ -178,6 +160,7 @@ def pca_3d_components(data):
     df = scaler.fit_transform(all_but_timestamp(data))
     X_PCA = pca.fit_transform(df)
     return X_PCA
+
 
 def pca_3d_plot(train, test, outlier_index):
     X = pd.concat([test, train])
@@ -190,23 +173,15 @@ def pca_3d_plot(train, test, outlier_index):
     ax.set_ylabel("x_composite_2")
     ax.set_zlabel("x_composite_3")
     # Plot the compressed data points
-    ax.scatter(data_pca[:int(len(train.index)), 0], data_pca[:int(len(train.index)), 1], zs=data_pca[:int(len(train.index)), 2], s=10, lw=1, label="inliers_train", c="green")
-    ax.scatter(data_pca[int(len(train.index)):, 0], data_pca[int(len(train.index)):, 1], zs=data_pca[int(len(train.index)):, 2], s=100, lw=1, label="inliers_train", c="blue")
+    ax.scatter(data_pca[:int(len(train.index)), 0], data_pca[:int(len(train.index)), 1], zs=data_pca[:int(len(train.index)), 2], s=10, lw=1, label="Train inliers", c="green")
+    ax.scatter(data_pca[int(len(train.index)):, 0], data_pca[int(len(train.index)):, 1], zs=data_pca[int(len(train.index)):, 2], s=100, lw=1, label="Test inliers", c="blue")
     # Plot x's for the ground truth outliers
     ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=80,
-               marker="x", c="red", label="outliers", alpha=0.5)
-
-    def tsne_3d_plot(train, test, outlier_index):
-        
-
-
-    # for angle in range(0, 360):
-    #     ax.view_init(10, 10)
-    #     plt.draw()
-    #     plt.pause(10)
+               marker="x", c="red", label="Test outliers", alpha=0.5)
 
     ax.legend()
     plt.show()
+
 
 def export_PCA(export_data, data_name='export_data_aws_comp20.csv'):
     export_data.to_csv(data_name)
@@ -269,59 +244,55 @@ def radar_chart(pca_data, anomaly_index, normal_index):
     plt.show()
 
 
-###################################################################
-###################################################################
-####################   Loading Data    ############################
-###################################################################
-###################################################################
+def generate_and_test_model():
+    print('Getting train data...')
+    train = get_long_input(from_time='2019-11-17T08:00:00.000Z', to_time='2019-11-18T22:00:00.000Z')
+    print('Preparing data for model...')
+    le = {}
+    train = add_features_n_NA(train)
+    convert_categorical_to_int(train, le)
 
-print('Getting train data...')
-train = get_long_input(from_time='2019-11-17T08:00:00.000Z', to_time='2019-11-18T22:00:00.000Z')
-print('Preparing data for model...')
-le = {}
-train = add_features_n_NA(train)
-convert_categorical_to_int(train, le)
+    print('Training model...')
+    isof = model_isof(train, contamination=0.001)
+    save_model(isof, 'model_V0.clf')
 
-print('Training model...')
-isof = model_isof(train, contamination=0.2)
-save_model(isof,'model_V0.clf')
+    print('Predicting on train set...')
+    train_pred,train_outlier,train_table=predict(isof,train)
 
-print('Predicting on train set...')
-train_pred,train_outlier,train_table=predict(isof,train)
+    print('Getting test data...')
+    # test = get_input(from_time='2019-11-19T10:00:00.000Z', to_time='2019-11-19T10:10:00.000Z', save_to_file=False)
+    test = get_input(from_time='now-1d', to_time='now', save_to_file=False)
+    test = add_features_n_NA(test)
+    convert_categorical_to_int(test, le, False)
+    print('Predicting on test set...')
+    test_pred, test_outlier, test_table = predict(isof, test)
 
-print('Getting test data...')
-#test = get_input(from_time='2019-11-19T10:00:00.000Z', to_time='2019-11-19T10:10:00.000Z', save_to_file=False)
-test = get_input(from_time='now-70m', to_time='now-60m', save_to_file=False)
-test = add_features_n_NA(test)
-convert_categorical_to_int(test, le, False)
-print('Predicting on test set...')
-test_pred, test_outlier, test_table = predict(isof, test)
+    test_table['host']= ('Comp_') + test_table['host'].astype(str)
+    print(test.timestamp.head(10))
 
-test_table['host']= ('Comp_') + test_table['host'].astype(str)
-print(test.timestamp.head(10))
+    print('Anomalies:')
+    print(test_table)
 
+    X=pd.concat([test, train])
+    paint_test=len(test.index)
+    X_PCA = pca_3d_components(X)
+    pca_3d_plot(train,test, test_outlier)
 
-
-print('Anomalies:')
-print(test_table)
-
-X=pd.concat([test, train])
-paint_test=len(test.index)
-X_PCA = pca_3d_components(X)
-pca_3d_plot(train,test, test_outlier)
-
-# X_PCA.components_
-# X_PCA.explained_variance_
+    # X_PCA.components_
+    # X_PCA.explained_variance_
 
 
-#
-# data_scaled = pd.DataFrame(preprocessing.scale(train), columns=train.columns)
-# data_scaled.head(10)
-# pca = PCA(n_components=3)
-# pca.fit_transform(data_scaled)
-# export_data = pd.DataFrame(pca.components_, columns=data_scaled.columns, index=['PC-1', 'PC-2', 'PC-3'])
-# # exporting PCA components
-# # from google.colab import files
-#
-#
-# print(pca.explained_variance_ratio_)
+    #
+    # data_scaled = pd.DataFrame(preprocessing.scale(train), columns=train.columns)
+    # data_scaled.head(10)
+    # pca = PCA(n_components=3)
+    # pca.fit_transform(data_scaled)
+    # export_data = pd.DataFrame(pca.components_, columns=data_scaled.columns, index=['PC-1', 'PC-2', 'PC-3'])
+    # # exporting PCA components
+    # # from google.colab import files
+    #
+    #
+    # print(pca.explained_variance_ratio_)
+
+if __name__=="__main__":
+    generate_and_test_model()
