@@ -69,6 +69,7 @@ def get_input(from_time, to_time, save_to_file=True, load_from_file=True, base_p
         X = get_data(host="elastic.monitor.net", from_time=from_time, to_time=to_time)
         if X is not None:
             X['timestamp'] = X['timestamp'].astype('int64') * 1000000
+            X['timestamp'] = pd.to_datetime(X['timestamp'])
             if save_to_file:
                 X.to_json(full_path)
 
@@ -178,8 +179,9 @@ def pca_3d_components(data):
     X_PCA = pca.fit_transform(df)
     return X_PCA
 
-
-def pca_3d_plot(data_pca, outlier_index):
+def pca_3d_plot(train, test, outlier_index):
+    X = pd.concat([test, train])
+    data_pca = pca_3d_components(X)
     plt.clf()
     plt.close()
     fig = plt.figure(figsize=(20, 10))
@@ -188,10 +190,16 @@ def pca_3d_plot(data_pca, outlier_index):
     ax.set_ylabel("x_composite_2")
     ax.set_zlabel("x_composite_3")
     # Plot the compressed data points
-    ax.scatter(data_pca[:, 0], data_pca[:, 1], zs=data_pca[:, 2], s=10, lw=1, label="inliers", c="green")
+    ax.scatter(data_pca[:int(len(train.index)), 0], data_pca[:int(len(train.index)), 1], zs=data_pca[:int(len(train.index)), 2], s=10, lw=1, label="inliers_train", c="green")
+    ax.scatter(data_pca[int(len(train.index)):, 0], data_pca[int(len(train.index)):, 1], zs=data_pca[int(len(train.index)):, 2], s=100, lw=1, label="inliers_train", c="blue")
     # Plot x's for the ground truth outliers
-    ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=60,
+    ax.scatter(data_pca[outlier_index, 0], data_pca[outlier_index, 1], data_pca[outlier_index, 2], lw=2, s=80,
                marker="x", c="red", label="outliers", alpha=0.5)
+
+    def tsne_3d_plot(train, test, outlier_index):
+        
+
+
     # for angle in range(0, 360):
     #     ax.view_init(10, 10)
     #     plt.draw()
@@ -199,7 +207,6 @@ def pca_3d_plot(data_pca, outlier_index):
 
     ax.legend()
     plt.show()
-
 
 def export_PCA(export_data, data_name='export_data_aws_comp20.csv'):
     export_data.to_csv(data_name)
@@ -269,7 +276,7 @@ def radar_chart(pca_data, anomaly_index, normal_index):
 ###################################################################
 
 print('Getting train data...')
-train = get_long_input(from_time='2019-11-14T10:00:00.000Z', to_time='2019-11-16T20:00:00.000Z')
+train = get_long_input(from_time='2019-11-17T08:00:00.000Z', to_time='2019-11-18T22:00:00.000Z')
 print('Preparing data for model...')
 le = {}
 train = add_features_n_NA(train)
@@ -277,12 +284,14 @@ convert_categorical_to_int(train, le)
 
 print('Training model...')
 isof = model_isof(train, contamination=0.2)
+save_model(isof,'model_V0.clf')
 
 print('Predicting on train set...')
 train_pred,train_outlier,train_table=predict(isof,train)
 
 print('Getting test data...')
-test = get_input(from_time='2019-11-18T10:00:00.000Z', to_time='2019-11-18T10:10:00.000Z', save_to_file=False)
+#test = get_input(from_time='2019-11-19T10:00:00.000Z', to_time='2019-11-19T10:10:00.000Z', save_to_file=False)
+test = get_input(from_time='now-70m', to_time='now-60m', save_to_file=False)
 test = add_features_n_NA(test)
 convert_categorical_to_int(test, le, False)
 print('Predicting on test set...')
@@ -297,8 +306,9 @@ print('Anomalies:')
 print(test_table)
 
 X=pd.concat([test, train])
+paint_test=len(test.index)
 X_PCA = pca_3d_components(X)
-pca_3d_plot(X_PCA, test_outlier)
+pca_3d_plot(train,test, test_outlier)
 
 # X_PCA.components_
 # X_PCA.explained_variance_
